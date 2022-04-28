@@ -10,6 +10,11 @@ from charm.toolbox.IBEnc import IBEnc
 from charm.toolbox.hash_module import Hash,int2Bytes,integer
 import json
 
+# Otp:
+import math
+import random
+import smtplib
+
 verify = [51, 58, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 69, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65, 65]
 
 app = Flask(__name__)
@@ -24,14 +29,14 @@ group = PairingGroup('BN254')
 def to_json(python_object):                           
         return {'__class__': 'bytes',
                 '__value__': list(python_object)}   
-class Item(db.Model):
-  id = db.Column(db.Integer, primary_key=True)
-  title = db.Column(db.String(80), unique=True, nullable=False)
-  content = db.Column(db.String(120), unique=True, nullable=False)
 
-  def __init__(self, title, content):
-    self.title = title
-    self.content = content
+class Otp(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    otp = db.Column(db.String(80), unique=True, nullable=False)
+    user_id = db.Column(db.String, nullable=False)
+    def __init__(self, otp, user_id):
+        self.otp = otp
+        self.user_id = user_id
 
 # class for holding secrets: TA and Server
 class Secrets(db.Model):
@@ -74,6 +79,48 @@ db.create_all()
  * Get server secret
 '''
 
+
+# send otp to client
+@app.route('/otp', methods=['POST'])
+def send_otp():
+    user_id = request.json['user_id']
+    digits="0123456789"
+    otp=""
+    for i in range(6):
+        otp+=digits[math.floor(random.random()*10)]
+    msg = otp + " is your OTP"
+
+    # delete existing OTP save new OTP to db
+    try:
+        db.session.query(Otp).filter_by(user_id=user_id).delete()
+        db.session.commit()
+    except:
+        db.session.rollback()
+
+    db.session.add(Otp(otp, user_id))
+    db.session.commit()
+
+    # send otp to user
+    s = smtplib.SMTP('smtp.gmail.com', 587)
+    s.starttls()
+    s.login("csp.mpin@gmail.com", "mygspgmutbrxjnto")
+    s.sendmail('&&&&&&&&&&&',user_id, msg)
+    return "sent"
+
+# verify otp
+@app.route('/verify', methods=['POST'])
+def verify():
+    user_id = request.json['user_id']
+    otp_rec = request.json['otp']
+    try:
+        otp = db.session.query(Otp).filter_by(user_id=user_id).first()
+        if otp.otp == otp_rec:
+            return 'true'
+        else:
+            return 'false'
+    except:
+        return 'false'
+  
 
 # to store master secret in db
 @app.route('/init-ta', methods=['GET'])
